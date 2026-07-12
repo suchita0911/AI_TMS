@@ -1,0 +1,93 @@
+# Render Blueprint for AI Powered TMS
+# ------------------------------------
+# Deploys three services from this repo:
+#   1. tms-db   — managed PostgreSQL 16 (auto-seeded by the backend on startup)
+#   2. backend  — FastAPI (Docker). Named "backend" on purpose so the frontend's
+#                 nginx `proxy_pass http://backend:8000` resolves over Render's
+#                 private network with zero config change.
+#   3. frontend — nginx serving the built React app and proxying /api -> backend
+#                 (same-origin, so no CORS needed).
+#
+# Deploy: push this repo to GitHub, then Render Dashboard -> New -> Blueprint.
+# You'll be prompted for the `sync: false` secrets below.
+
+databases:
+  - name: tms-db
+    databaseName: tms
+    user: tms
+    plan: free
+    postgresMajorVersion: "16"
+    region: oregon
+
+services:
+  # ------------------------------- Backend ------------------------------- #
+  - type: web
+    name: backend
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    envVars:
+      # Render routes to this port; the Dockerfile binds uvicorn to $PORT.
+      - key: PORT
+        value: "8000"
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      # Database — mapped from the managed Postgres above (internal network).
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: tms-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: tms-db
+          property: port
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: tms-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: tms-db
+          property: password
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: tms-db
+          property: database
+      # Security — a strong random key is generated once and kept stable.
+      - key: SECRET_KEY
+        generateValue: true
+      # Bootstrap admin (username fixed; password prompted so it isn't in git).
+      - key: FIRST_ADMIN_USERNAME
+        value: admin
+      - key: FIRST_ADMIN_PASSWORD
+        sync: false
+      # AI — optional. If unset/invalid, AI features degrade to fallbacks.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CLAUDE_MODEL
+        value: claude-opus-4-8
+      # Email links & CORS. Requests proxied same-origin already carry the right
+      # Origin, but set these to the frontend URL after the first deploy for
+      # correctness (see DEPLOY.md). Prompted so you can paste the real URL.
+      - key: FRONTEND_BASE_URL
+        sync: false
+      - key: BACKEND_CORS_ORIGINS
+        sync: false
+
+  # ------------------------------ Frontend ------------------------------- #
+  - type: web
+    name: frontend
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    envVars:
+      # nginx.conf listens on 80; tell Render to route there.
+      - key: PORT
+        value: "80"

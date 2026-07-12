@@ -1,0 +1,7 @@
+# The multi-stage build runs `npm ci` fresh — never ship the local install/output.
+node_modules/
+dist/
+.vite/
+*.log
+.env
+*.local
