@@ -1,0 +1,31 @@
+# Processed by the nginx image's envsubst-on-templates entrypoint at startup.
+# ${NGINX_LOCAL_RESOLVERS} is auto-populated from /etc/resolv.conf by the image
+# (works on Render's private network and in local docker-compose alike).
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # SPA fallback — client-side routing
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Proxy API to the backend service.
+    # Using a resolver + a variable upstream defers DNS lookup to request time,
+    # so nginx starts even if the backend isn't registered yet (no boot crash)
+    # and re-resolves as the backend comes up.
+    location /api/ {
+        resolver ${NGINX_LOCAL_RESOLVERS} valid=10s;
+        set $backend_upstream http://backend:8000;
+        proxy_pass $backend_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        client_max_body_size 200M;
+        # AI quiz generation can be long-running; don't cut it off at 60s.
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+    }
+}
