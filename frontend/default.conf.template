@@ -17,14 +17,23 @@ server {
     # Using a resolver + a variable upstream defers DNS lookup to request time,
     # so nginx starts even if the backend isn't registered yet (no boot crash)
     # and re-resolves as the backend comes up.
+    # On Render, BACKEND_* point at the backend's PUBLIC https host so the request
+    # resolves reliably and cold-starts a spun-down free service; locally they
+    # fall back to http://backend:8000 over the compose network.
     location /api/ {
         resolver ${NGINX_LOCAL_RESOLVERS} valid=10s;
-        set $backend_upstream http://backend:8000;
+        set $backend_upstream ${BACKEND_SCHEME}://${BACKEND_ADDR};
         proxy_pass $backend_upstream;
-        proxy_set_header Host $host;
+        # Host must match the upstream host so Render's router (and TLS SNI) send
+        # the request to the right service.
+        proxy_set_header Host ${BACKEND_ADDR};
+        proxy_ssl_server_name on;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         client_max_body_size 200M;
+        # First hit may cold-start a spun-down free backend (~50s); give it room.
+        proxy_connect_timeout 90s;
         # AI quiz generation can be long-running; don't cut it off at 60s.
         proxy_read_timeout 600s;
         proxy_send_timeout 600s;

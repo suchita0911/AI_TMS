@@ -1,8 +1,26 @@
 #!/bin/sh
-# Sourced by the nginx image's docker-entrypoint before 20-envsubst-on-templates.sh.
-# Populates ${NGINX_LOCAL_RESOLVERS} from the container's /etc/resolv.conf so the
-# resolver directive in default.conf.template gets a real DNS server address.
-# Falls back to Docker's embedded DNS if resolv.conf has no nameserver.
+# Sourced by the nginx image's docker-entrypoint before 20-envsubst-on-templates.sh,
+# so the vars exported here are available to envsubst when it renders
+# default.conf.template.
+
+# 1) DNS resolver for the request-time upstream lookup. Pulled from the
+#    container's /etc/resolv.conf (Render injects its resolver there; Docker's
+#    embedded DNS is 127.0.0.11 locally). Needed because proxy_pass uses a
+#    variable, which defers resolution to request time.
 resolvers="$(awk 'BEGIN{ORS=" "} $1=="nameserver"{print $2}' /etc/resolv.conf)"
 export NGINX_LOCAL_RESOLVERS="${resolvers:-127.0.0.11}"
-echo "$0: NGINX_LOCAL_RESOLVERS=${NGINX_LOCAL_RESOLVERS}"
+
+# 2) Backend upstream. On Render we set BACKEND_ORIGIN (via render.yaml's
+#    fromService) to the backend's public host, e.g. backend-xxxx.onrender.com.
+#    Proxying to the PUBLIC url resolves reliably and wakes a spun-down free
+#    service (private-network requests do neither). Locally BACKEND_ORIGIN is
+#    unset, so we fall back to the private compose hostname backend:8000.
+if [ -n "${BACKEND_ORIGIN}" ]; then
+    export BACKEND_SCHEME="https"
+    export BACKEND_ADDR="${BACKEND_ORIGIN}"
+else
+    export BACKEND_SCHEME="http"
+    export BACKEND_ADDR="backend:8000"
+fi
+
+echo "$0: NGINX_LOCAL_RESOLVERS=${NGINX_LOCAL_RESOLVERS} BACKEND=${BACKEND_SCHEME}://${BACKEND_ADDR}"
