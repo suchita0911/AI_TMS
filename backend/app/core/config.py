@@ -87,7 +87,7 @@ class Settings(BaseSettings):
 
     # Bootstrap admin
     FIRST_ADMIN_USERNAME: str = "admin"
-    FIRST_ADMIN_EMAIL: str = "admin@tms.local"
+    FIRST_ADMIN_EMAIL: str = "admin@yopmail.com"
     FIRST_ADMIN_PASSWORD: str = "Admin@12345"
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
