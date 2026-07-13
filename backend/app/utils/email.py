@@ -1,9 +1,19 @@
-"""SMTP email sending. No-op (skipped) when SMTP is not configured."""
+"""Email sending via Brevo's HTTP API or SMTP.
+
+Delivery backend is chosen at call time (see :func:`send_email`):
+  1. Brevo HTTP API  — when ``BREVO_API_KEY`` is set (works where outbound SMTP
+     is blocked, e.g. Render).
+  2. SMTP            — when ``SMTP_HOST`` is set (local dev / SMTP-friendly hosts).
+No-op ("skipped") when neither is configured.
+"""
 from __future__ import annotations
 
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import parseaddr
+
+import httpx
 
 from app.core.config import settings
 from app.core.logging_config import get_logger
@@ -12,7 +22,7 @@ logger = get_logger(__name__)
 
 
 def is_configured() -> bool:
-    return bool(settings.SMTP_HOST)
+    return bool(settings.BREVO_API_KEY or settings.SMTP_HOST)
 
 
 def send_password_setup_email(user, token: str, base_url: str | None = None) -> str:
@@ -47,10 +57,53 @@ def send_password_setup_email(user, token: str, base_url: str | None = None) -> 
 
 
 def send_email(to: str, subject: str, body_html: str, body_text: str | None = None) -> str:
-    """Return delivery status: 'sent' | 'failed' | 'skipped'."""
-    if not is_configured():
-        logger.info("SMTP not configured; skipping email to %s (%s)", to, subject)
-        return "skipped"
+    """Return delivery status: 'sent' | 'failed' | 'skipped'.
+
+    Prefers the Brevo HTTP API (works where outbound SMTP is blocked); falls
+    back to SMTP; no-ops when neither backend is configured.
+    """
+    if settings.BREVO_API_KEY:
+        return _send_via_brevo(to, subject, body_html, body_text)
+    if settings.SMTP_HOST:
+        return _send_via_smtp(to, subject, body_html, body_text)
+    logger.info("Email not configured; skipping email to %s (%s)", to, subject)
+    return "skipped"
+
+
+def _send_via_brevo(to: str, subject: str, body_html: str, body_text: str | None) -> str:
+    """Send through Brevo's transactional email HTTP API (over HTTPS)."""
+    sender_name, sender_email = parseaddr(settings.SMTP_FROM)
+    payload = {
+        "sender": {"email": sender_email, "name": sender_name or sender_email},
+        "to": [{"email": to}],
+        "subject": subject,
+        "htmlContent": body_html,
+    }
+    if body_text:
+        payload["textContent"] = body_text
+    try:
+        resp = httpx.post(
+            settings.BREVO_API_URL,
+            headers={
+                "api-key": settings.BREVO_API_KEY,
+                "accept": "application/json",
+                "content-type": "application/json",
+            },
+            json=payload,
+            timeout=15,
+        )
+        if resp.status_code in (200, 201, 202):
+            return "sent"
+        logger.warning("Email to %s failed via Brevo: HTTP %s %s",
+                       to, resp.status_code, resp.text[:300])
+        return "failed"
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Email to %s failed via Brevo: %s", to, exc)
+        return "failed"
+
+
+def _send_via_smtp(to: str, subject: str, body_html: str, body_text: str | None) -> str:
+    """Send through an SMTP server (local dev / SMTP-friendly hosts)."""
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject

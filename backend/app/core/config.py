@@ -78,6 +78,14 @@ class Settings(BaseSettings):
     REMINDER_INTERVAL_HOURS: int = 12
 
     # Email
+    # Two delivery backends, tried in this order by app.utils.email:
+    #   1. Brevo HTTP API (BREVO_API_KEY) — required on hosts that block outbound
+    #      SMTP (e.g. Render). Sends over HTTPS, so it works where SMTP can't.
+    #   2. SMTP (SMTP_HOST) — used for local dev / hosts that allow SMTP.
+    # If neither is set, email is a no-op ("skipped"). The sender identity
+    # (SMTP_FROM) is shared by both backends.
+    BREVO_API_KEY: str = ""
+    BREVO_API_URL: str = "https://api.brevo.com/v3/smtp/email"
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
