@@ -1,6 +1,7 @@
 # Processed by the nginx image's envsubst-on-templates entrypoint at startup.
-# ${NGINX_LOCAL_RESOLVERS} is auto-populated from /etc/resolv.conf by the image
-# (works on Render's private network and in local docker-compose alike).
+# ${NGINX_LOCAL_RESOLVERS} is exported from /etc/resolv.conf by our
+# /docker-entrypoint.d/15-local-resolvers.envsh (sourced before envsubst runs),
+# so it works on Render's private network and in local docker-compose alike.
 server {
     listen 80;
     server_name _;
