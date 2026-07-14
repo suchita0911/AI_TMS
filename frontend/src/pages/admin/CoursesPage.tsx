@@ -40,7 +40,13 @@ export default function CoursesPage() {
         await api.get<Page<Course>>("/courses", {
           params: {
             q: search || undefined,
-            status: statusFilter === "all" ? undefined : statusFilter,
+            // "expired" is a derived state (published + past due), sent as its
+            // own flag; other values map straight to the stored course status.
+            status:
+              statusFilter === "all" || statusFilter === "expired"
+                ? undefined
+                : statusFilter,
+            expired: statusFilter === "expired" ? true : undefined,
             page,
             page_size: PAGE_SIZE,
           },
@@ -115,6 +121,7 @@ export default function CoursesPage() {
             <SelectItem value="draft">Draft</SelectItem>
             <SelectItem value="published">Published</SelectItem>
             <SelectItem value="archived">Archived</SelectItem>
+            <SelectItem value="expired">Expired</SelectItem>
           </SelectContent>
         </Select>
       </div>

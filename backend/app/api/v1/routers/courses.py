@@ -77,11 +77,13 @@ def list_courses(
     status_filter: Optional[CourseStatus] = Query(None, alias="status"),
     course_type: Optional[CourseType] = None,
     category: Optional[str] = None,
+    expired: Optional[bool] = Query(None, description="True = only published courses past their due date"),
     page: int = Query(1, ge=1),
     page_size: int = Query(12, ge=1, le=100),
 ):
     items, total = CourseService(db).list(
         query=q, status=status_filter, course_type=course_type, category=category,
+        expired=expired,
         offset=(page - 1) * page_size, limit=page_size,
     )
     return Page[CourseOut](
