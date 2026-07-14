@@ -173,6 +173,21 @@ class UserService:
         self.db.commit()
         return user
 
+    def delete_user(self, user_id: int, actor: User) -> None:
+        """Permanently delete a user from the database.
+
+        Related rows are handled by DB foreign-key rules: enrollments, quiz
+        attempts/answers, certificates, notifications and group memberships
+        cascade-delete; audit logs and authored courses are preserved with their
+        actor/author set to NULL. An admin cannot delete their own account (which
+        also guarantees at least one administrator always remains).
+        """
+        user = self.get_user(user_id)
+        if user.id == actor.id:
+            raise BusinessRuleError("You cannot delete your own account.")
+        self.db.delete(user)
+        self.db.commit()
+
     def set_active(self, user_id: int, active: bool) -> User:
         user = self.get_user(user_id)
         user.is_active = active

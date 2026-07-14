@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { api, apiError } from "@/lib/api";
+import { useConfirm } from "@/components/ConfirmDialog";
 import type { QuestionBankStats } from "@/types";
 
 interface GenStatus {
@@ -19,6 +20,7 @@ interface GenStatus {
 
 export function QuestionBankCard({ courseId }: { courseId: number }) {
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const [count, setCount] = useState(25);
   const [polling, setPolling] = useState(false);
 
@@ -92,8 +94,16 @@ export function QuestionBankCard({ courseId }: { courseId: number }) {
             variant="ghost"
             size="sm"
             className="text-destructive"
-            onClick={() => {
-              if (confirm("Clear the entire question bank for this course?")) clear.mutate();
+            onClick={async () => {
+              if (
+                await confirm({
+                  title: "Clear question bank",
+                  description:
+                    "Delete all generated questions for this course? This can’t be undone.",
+                  confirmText: "Clear",
+                })
+              )
+                clear.mutate();
             }}
           >
             <Trash2 className="h-4 w-4" /> Clear

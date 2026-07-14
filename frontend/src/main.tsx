@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import App from "./App";
 import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeProvider";
+import { ConfirmProvider } from "./components/ConfirmDialog";
 import "./index.css";
 
 const queryClient = new QueryClient({
@@ -20,8 +21,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
-            <App />
-            <Toaster richColors position="top-right" />
+            <ConfirmProvider>
+              <App />
+              <Toaster richColors position="top-right" />
+            </ConfirmProvider>
           </AuthProvider>
         </BrowserRouter>
       </QueryClientProvider>

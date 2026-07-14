@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, MoreHorizontal, UserCheck, UserX, Pencil } from "lucide-react";
+import { Plus, Search, MoreHorizontal, UserCheck, UserX, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/PageHeader";
 import { Pagination } from "@/components/Pagination";
@@ -42,6 +42,9 @@ import {
 } from "@/components/ui/select";
 import { api, apiError } from "@/lib/api";
 import { DesignationSelect } from "@/components/DesignationSelect";
+import { useConfirm } from "@/components/ConfirmDialog";
+import { notifyDeleted } from "@/lib/notify";
+import { useAuth } from "@/context/AuthContext";
 import type { DepartmentBrief, Page, User } from "@/types";
 
 const PAGE_SIZE = 10;
@@ -69,6 +72,8 @@ const emptyEditForm = {
 
 export default function EmployeesPage() {
   const qc = useQueryClient();
+  const confirm = useConfirm();
+  const { user: currentUser } = useAuth();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -164,6 +169,15 @@ export default function EmployeesPage() {
       toast.success("Updated");
     },
     onError: (e) => toast.error(apiError(e)),
+  });
+
+  const deleteUser = useMutation({
+    mutationFn: async (u: User) => api.delete(`/users/${u.id}`),
+    onSuccess: (_d, u) => {
+      notifyDeleted("Employee", `${u.first_name} ${u.last_name}`);
+      qc.invalidateQueries({ queryKey: ["users"] });
+    },
+    onError: (e) => toast.error(apiError(e, "Could not delete employee")),
   });
 
   const setField = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -264,6 +278,23 @@ export default function EmployeesPage() {
                             </>
                           )}
                         </DropdownMenuItem>
+                        {currentUser?.id !== u.id && (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={async () => {
+                              if (
+                                await confirm({
+                                  title: "Delete employee",
+                                  description: `Permanently delete ${u.first_name} ${u.last_name}? This removes their account and all their records, and can’t be undone.`,
+                                  confirmText: "Delete",
+                                })
+                              )
+                                deleteUser.mutate(u);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" /> Delete
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

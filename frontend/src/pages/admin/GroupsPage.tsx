@@ -28,10 +28,12 @@ import {
 import { DesignationSelect } from "@/components/DesignationSelect";
 import { api, apiError } from "@/lib/api";
 import { notifyDeleted } from "@/lib/notify";
+import { useConfirm } from "@/components/ConfirmDialog";
 import type { Group, Page, User } from "@/types";
 
 export default function GroupsPage() {
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Group | null>(null);
   const [form, setForm] = useState({ name: "", description: "" });
@@ -183,8 +185,15 @@ export default function GroupsPage() {
                         variant="ghost"
                         size="icon"
                         className="text-destructive"
-                        onClick={() => {
-                          if (confirm(`Delete group "${g.name}"?`)) remove.mutate(g.id);
+                        onClick={async () => {
+                          if (
+                            await confirm({
+                              title: "Delete group",
+                              description: `Delete the group “${g.name}”? This can’t be undone.`,
+                              confirmText: "Delete",
+                            })
+                          )
+                            remove.mutate(g.id);
                         }}
                       >
                         <Trash2 className="h-4 w-4" />
