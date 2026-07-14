@@ -77,6 +77,8 @@ class TrendingCourseOut(BaseModel):
 class TrendingRecommendationsOut(BaseModel):
     items: list[TrendingCourseOut]
     focus: Optional[str] = None
+    designation: Optional[str] = None
+    level: Optional[str] = None
     # "ai" when authored by Claude, "fallback" for the curated offline list.
     source: str
 

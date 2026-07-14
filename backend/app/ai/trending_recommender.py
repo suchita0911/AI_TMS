@@ -47,14 +47,15 @@ def _prompt(
         else "Cover a broad, complementary mix across the IT industry.\n"
     )
     designation_line = (
-        f"Tailor the recommendations for an employee whose job designation is "
-        f"\"{designation}\": prioritise skills and topics that advance someone in "
-        f"this role and match its typical seniority.\n"
+        f"Tailor the recommendations specifically for an employee whose job "
+        f"designation is \"{designation}\": EVERY course must be directly relevant "
+        f"to the responsibilities and typical seniority of this role.\n"
         if designation
         else ""
     )
     level_line = (
-        f"Prefer courses at this difficulty level: {level}.\n"
+        f"EVERY recommended course MUST be at the \"{level}\" difficulty level -do "
+        f"not include courses at any other level.\n"
         if level
         else ""
     )
@@ -251,12 +252,13 @@ def _generate_fallback(
 ) -> list[dict]:
     excluded = {t.strip().lower() for t in exclude}
     items = [c for c in _FALLBACK if c["title"].lower() not in excluded]
-    if level:
-        level = level.strip().lower()
-        if level in _LEVELS:
-            filtered = [c for c in items if c["level"] == level]
-            if filtered:
-                items = filtered
+    # Level is a hard constraint: keep only courses at exactly that level, and
+    # return nothing (not-found) if none qualify.
+    lvl = (level or "").strip().lower()
+    if lvl in _LEVELS:
+        items = [c for c in items if c["level"] == lvl]
+        if not items:
+            return []
 
     def _blob(c: dict) -> str:
         return f"{c['title']} {c['category']} {c.get('description','')}".lower()
@@ -287,18 +289,27 @@ def recommend(
     """Return ``(courses, source)`` where source is ``"ai"`` or ``"fallback"``."""
     focus = (focus or "").strip()
     designation = (designation or "").strip()
+    lvl = (level or "").strip().lower()
+    lvl = lvl if lvl in _LEVELS else ""
     count = max(MIN_COUNT, min(int(count or 6), MAX_COUNT))
     exclude = [t for t in (exclude or []) if t][:100]
+    # Focus, designation or level each make the query "specific" — an empty result
+    # should then be surfaced as not-found rather than masked by the generic list.
+    specific = bool(focus or designation or lvl)
 
     if claude_client.is_configured():
         try:
-            items = _generate_with_claude(focus, count, exclude, designation, level)
-            # With a focus, trust the AI's verdict — including an empty list, which
-            # means "no relevant courses" (surface as not-found, don't mask it with
-            # the generic fallback). Only a focus-less empty result falls through.
-            if items or focus:
+            items = _generate_with_claude(focus, count, exclude, designation, lvl)
+            # Enforce level as a hard constraint on the AI output too (the model is
+            # instructed to obey it, but filter to be certain).
+            if lvl:
+                items = [i for i in items if i.get("level") == lvl]
+            # Trust the AI's verdict — including an empty list, which means "no
+            # relevant/matching courses" (surface as not-found, don't mask it with
+            # the fallback). Only a criteria-less empty result falls through.
+            if items or specific:
                 return items[:count], "ai"
         except ClaudeError as exc:
             logger.warning("Claude trending recommendation failed (%s); using fallback", exc)
 
-    return _generate_fallback(focus, count, exclude, designation, level), "fallback"
+    return _generate_fallback(focus, count, exclude, designation, lvl), "fallback"

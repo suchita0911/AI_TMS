@@ -188,14 +188,17 @@ export default function TrendingCoursesPage() {
         </div>
       )}
 
-      {result && (result.designation || result.focus) && (
+      {result && (result.designation || result.focus || result.level) && (
         <p className="mb-4 text-sm text-muted-foreground">
-          Tailored for
-          {result.designation && (
-            <span className="font-medium text-foreground"> {result.designation}</span>
-          )}
-          {result.designation && result.focus && " · "}
-          {result.focus && <span className="font-medium text-foreground">{result.focus}</span>}
+          Tailored for{" "}
+          {[result.designation, result.focus, result.level]
+            .filter(Boolean)
+            .map((part, i, arr) => (
+              <span key={i}>
+                <span className="font-medium capitalize text-foreground">{part}</span>
+                {i < arr.length - 1 && " · "}
+              </span>
+            ))}
         </p>
       )}
 

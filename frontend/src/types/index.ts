@@ -1,6 +1,36 @@
 export type Role = "admin" | "employee";
 export type UserStatus = "pending" | "active" | "inactive";
 
+// Curated job designations offered in the employee forms and the AI
+// recommendation picker. Stored free-form on the backend, so this list can grow
+// without a migration.
+export const DESIGNATIONS = [
+  "Software Engineer",
+  "Senior Software Engineer",
+  "Tech Lead",
+  "Engineering Manager",
+  "Frontend Developer",
+  "Backend Developer",
+  "Full Stack Developer",
+  "QA Engineer",
+  "Automation Test Engineer",
+  "DevOps Engineer",
+  "Cloud Engineer",
+  "Data Engineer",
+  "Data Scientist",
+  "Machine Learning Engineer",
+  "UI/UX Designer",
+  "Business Analyst",
+  "Product Manager",
+  "Project Manager",
+  "Scrum Master",
+  "Database Administrator",
+  "System Administrator",
+  "Security Engineer",
+  "Support Engineer",
+  "Intern / Trainee",
+] as const;
+
 export interface DepartmentBrief {
   id: number;
   name: string;
@@ -13,6 +43,7 @@ export interface User {
   username: string;
   email: string;
   employee_id?: string | null;
+  designation?: string | null;
   status: UserStatus;
   is_active: boolean;
   role: Role;
@@ -108,6 +139,8 @@ export interface TrendingCourse {
 export interface TrendingRecommendations {
   items: TrendingCourse[];
   focus?: string | null;
+  designation?: string | null;
+  level?: string | null;
   source: "ai" | "fallback";
 }
 
