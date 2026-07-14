@@ -24,7 +24,7 @@ from app.schemas.auth import (
     TokenResponse,
 )
 from app.schemas.common import Message
-from app.schemas.user import DepartmentBrief, UserOut
+from app.schemas.user import DepartmentBrief, DesignationOut, UserOut
 from app.services.auth_service import AuthService
 from app.services.user_service import UserService
 
@@ -36,6 +36,12 @@ def public_departments(db: DbSession):
     """Active departments for the public registration form (id + name only)."""
     items, _ = UserService(db).list_departments(limit=100)
     return [DepartmentBrief(id=d.id, name=d.name) for d in items if d.is_active]
+
+
+@router.get("/designations", response_model=list[DesignationOut])
+def public_designations(db: DbSession):
+    """Active job designations for the public registration form."""
+    return [DesignationOut.model_validate(d) for d in UserService(db).list_designations()]
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)

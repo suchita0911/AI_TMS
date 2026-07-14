@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   Mail,
   Building2,
+  BadgeCheck,
   HelpCircle,
   CalendarClock,
 } from "lucide-react";
@@ -67,6 +68,11 @@ export default function EmployeeDetailPage() {
         <span className="flex items-center gap-1.5">
           <Building2 className="h-4 w-4" /> {u.department?.name ?? "No department"}
         </span>
+        {u.designation && (
+          <span className="flex items-center gap-1.5">
+            <BadgeCheck className="h-4 w-4" /> {u.designation}
+          </span>
+        )}
         <Badge variant={u.role === "admin" ? "default" : "secondary"}>{u.role}</Badge>
       </div>
 

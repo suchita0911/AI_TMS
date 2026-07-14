@@ -41,6 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api, apiError } from "@/lib/api";
+import { DesignationSelect } from "@/components/DesignationSelect";
 import type { DepartmentBrief, Page, User } from "@/types";
 
 const PAGE_SIZE = 10;
@@ -49,6 +50,7 @@ const emptyForm = {
   last_name: "",
   email: "",
   employee_id: "",
+  designation: "",
   department_id: "",
   role: "employee",
   password: "",
@@ -59,6 +61,7 @@ const emptyEditForm = {
   last_name: "",
   email: "",
   employee_id: "",
+  designation: "",
   department_id: "",
   role: "employee",
   password: "",
@@ -102,6 +105,7 @@ export default function EmployeesPage() {
         role: form.role,
         employee_id: employeeId,
       };
+      if (form.designation) payload.designation = form.designation;
       if (form.department_id) payload.department_id = Number(form.department_id);
       if (form.password) payload.password = form.password;
       return (await api.post<User & { setup_token?: string | null }>("/users", payload)).data;
@@ -123,6 +127,7 @@ export default function EmployeesPage() {
         last_name: editForm.last_name,
         email: editForm.email.trim(),
         role: editForm.role,
+        designation: editForm.designation || null,
         department_id: editForm.department_id ? Number(editForm.department_id) : null,
         employee_id: editForm.employee_id || null,
       };
@@ -143,6 +148,7 @@ export default function EmployeesPage() {
       last_name: u.last_name,
       email: u.email,
       employee_id: u.employee_id ?? "",
+      designation: u.designation ?? "",
       department_id: u.department?.id ? String(u.department.id) : "",
       role: u.role,
       password: "",
@@ -332,6 +338,17 @@ export default function EmployeesPage() {
               </div>
             </div>
             <div className="space-y-2">
+              <Label>Designation</Label>
+              <DesignationSelect
+                value={form.designation}
+                onChange={(v) => setForm((f) => ({ ...f, designation: v }))}
+                allowAdd
+              />
+              <p className="text-xs text-muted-foreground">
+                Used to tailor AI course recommendations to the employee's role.
+              </p>
+            </div>
+            <div className="space-y-2">
               <Label>Temporary password (optional)</Label>
               <Input
                 type="password"
@@ -412,6 +429,14 @@ export default function EmployeesPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Designation</Label>
+              <DesignationSelect
+                value={editForm.designation}
+                onChange={(v) => setEditForm((f) => ({ ...f, designation: v }))}
+                allowAdd
+              />
             </div>
             <div className="space-y-2">
               <Label>Set / reset password (optional)</Label>

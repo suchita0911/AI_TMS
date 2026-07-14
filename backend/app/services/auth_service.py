@@ -74,6 +74,7 @@ class AuthService:
             username=username,
             email=str(data.email),
             employee_id=data.employee_id,
+            designation=(data.designation or None),
             department_id=data.department_id,
             role_id=role.id,
             hashed_password=None,

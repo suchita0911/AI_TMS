@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api, apiError } from "@/lib/api";
+import { DesignationSelect } from "@/components/DesignationSelect";
 import type { DepartmentBrief } from "@/types";
 
 export default function RegisterPage() {
@@ -25,6 +26,7 @@ export default function RegisterPage() {
     last_name: "",
     email: "",
     employee_id: "",
+    designation: "",
     department_id: "",
   });
 
@@ -48,6 +50,7 @@ export default function RegisterPage() {
         email: form.email.trim(),
         employee_id: form.employee_id.trim(),
       };
+      if (form.designation) payload.designation = form.designation;
       if (form.department_id) payload.department_id = Number(form.department_id);
       await api.post("/auth/register", payload);
       toast.success(
@@ -112,6 +115,15 @@ export default function RegisterPage() {
               </SelectContent>
             </Select>
           </div>
+        </div>
+        <div className="space-y-2">
+          <Label>Designation</Label>
+          <DesignationSelect
+            value={form.designation}
+            onChange={(v) => setForm((f) => ({ ...f, designation: v }))}
+            source="public"
+            placeholder="Select your designation"
+          />
         </div>
         <p className="text-sm text-muted-foreground">
           We'll email you a secure link to set your password.
