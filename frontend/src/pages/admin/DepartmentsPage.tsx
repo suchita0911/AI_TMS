@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { api, apiError } from "@/lib/api";
+import { notifyDeleted } from "@/lib/notify";
 import { formatDate } from "@/lib/utils";
 import type { Department, Page } from "@/types";
 
@@ -58,7 +59,7 @@ export default function DepartmentsPage() {
   const remove = useMutation({
     mutationFn: async (id: number) => api.delete(`/departments/${id}`),
     onSuccess: () => {
-      toast.success("Department deleted");
+      notifyDeleted("Department");
       qc.invalidateQueries({ queryKey: ["departments"] });
     },
     onError: (e) => toast.error(apiError(e)),

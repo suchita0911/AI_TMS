@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageLoader, Spinner } from "@/components/ui/spinner";
 import { api, apiError } from "@/lib/api";
+import { notifyDeleted } from "@/lib/notify";
 import { formatDate } from "@/lib/utils";
 import type { CourseDetail, CourseDocument, Enrollment } from "@/types";
 
@@ -143,7 +144,7 @@ export default function CourseDetailPage() {
   const removeDoc = useMutation({
     mutationFn: async (docId: number) => api.delete(`/courses/${courseId}/documents/${docId}`),
     onSuccess: () => {
-      toast.success("Material removed");
+      notifyDeleted("Material");
       invalidate();
     },
     onError: (e) => toast.error(apiError(e)),
@@ -162,7 +163,7 @@ export default function CourseDetailPage() {
   const remove = useMutation({
     mutationFn: async () => api.delete(`/courses/${courseId}`),
     onSuccess: () => {
-      toast.success("Course deleted");
+      notifyDeleted("Course", course?.name);
       navigate("/admin/courses");
     },
     onError: (e) => toast.error(apiError(e)),

@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { DesignationSelect } from "@/components/DesignationSelect";
 import { api, apiError } from "@/lib/api";
+import { notifyDeleted } from "@/lib/notify";
 import type { Group, Page, User } from "@/types";
 
 export default function GroupsPage() {
@@ -78,7 +79,7 @@ export default function GroupsPage() {
   const remove = useMutation({
     mutationFn: async (id: number) => api.delete(`/groups/${id}`),
     onSuccess: () => {
-      toast.success("Group deleted");
+      notifyDeleted("Group");
       qc.invalidateQueries({ queryKey: ["groups"] });
     },
     onError: (e) => toast.error(apiError(e)),
