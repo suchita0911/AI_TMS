@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, MoreHorizontal, UserCheck, UserX, Pencil } from "lucide-react";
+import { Plus, Search, MoreHorizontal, UserCheck, UserX, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/PageHeader";
 import { Pagination } from "@/components/Pagination";
@@ -41,6 +41,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api, apiError } from "@/lib/api";
+import { DesignationSelect } from "@/components/DesignationSelect";
+import { useConfirm } from "@/components/ConfirmDialog";
+import { notifyDeleted } from "@/lib/notify";
+import { useAuth } from "@/context/AuthContext";
 import type { DepartmentBrief, Page, User } from "@/types";
 
 const PAGE_SIZE = 10;
@@ -49,6 +53,7 @@ const emptyForm = {
   last_name: "",
   email: "",
   employee_id: "",
+  designation: "",
   department_id: "",
   role: "employee",
   password: "",
@@ -59,6 +64,7 @@ const emptyEditForm = {
   last_name: "",
   email: "",
   employee_id: "",
+  designation: "",
   department_id: "",
   role: "employee",
   password: "",
@@ -66,6 +72,8 @@ const emptyEditForm = {
 
 export default function EmployeesPage() {
   const qc = useQueryClient();
+  const confirm = useConfirm();
+  const { user: currentUser } = useAuth();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -102,6 +110,7 @@ export default function EmployeesPage() {
         role: form.role,
         employee_id: employeeId,
       };
+      if (form.designation) payload.designation = form.designation;
       if (form.department_id) payload.department_id = Number(form.department_id);
       if (form.password) payload.password = form.password;
       return (await api.post<User & { setup_token?: string | null }>("/users", payload)).data;
@@ -123,6 +132,7 @@ export default function EmployeesPage() {
         last_name: editForm.last_name,
         email: editForm.email.trim(),
         role: editForm.role,
+        designation: editForm.designation || null,
         department_id: editForm.department_id ? Number(editForm.department_id) : null,
         employee_id: editForm.employee_id || null,
       };
@@ -143,6 +153,7 @@ export default function EmployeesPage() {
       last_name: u.last_name,
       email: u.email,
       employee_id: u.employee_id ?? "",
+      designation: u.designation ?? "",
       department_id: u.department?.id ? String(u.department.id) : "",
       role: u.role,
       password: "",
@@ -158,6 +169,15 @@ export default function EmployeesPage() {
       toast.success("Updated");
     },
     onError: (e) => toast.error(apiError(e)),
+  });
+
+  const deleteUser = useMutation({
+    mutationFn: async (u: User) => api.delete(`/users/${u.id}`),
+    onSuccess: (_d, u) => {
+      notifyDeleted("Employee", `${u.first_name} ${u.last_name}`);
+      qc.invalidateQueries({ queryKey: ["users"] });
+    },
+    onError: (e) => toast.error(apiError(e, "Could not delete employee")),
   });
 
   const setField = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -258,6 +278,23 @@ export default function EmployeesPage() {
                             </>
                           )}
                         </DropdownMenuItem>
+                        {currentUser?.id !== u.id && (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={async () => {
+                              if (
+                                await confirm({
+                                  title: "Delete employee",
+                                  description: `Permanently delete ${u.first_name} ${u.last_name}? This removes their account and all their records, and can’t be undone.`,
+                                  confirmText: "Delete",
+                                })
+                              )
+                                deleteUser.mutate(u);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" /> Delete
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -330,6 +367,17 @@ export default function EmployeesPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Designation</Label>
+              <DesignationSelect
+                value={form.designation}
+                onChange={(v) => setForm((f) => ({ ...f, designation: v }))}
+                allowAdd
+              />
+              <p className="text-xs text-muted-foreground">
+                Used to tailor AI course recommendations to the employee's role.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Temporary password (optional)</Label>
@@ -412,6 +460,14 @@ export default function EmployeesPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Designation</Label>
+              <DesignationSelect
+                value={editForm.designation}
+                onChange={(v) => setEditForm((f) => ({ ...f, designation: v }))}
+                allowAdd
+              />
             </div>
             <div className="space-y-2">
               <Label>Set / reset password (optional)</Label>

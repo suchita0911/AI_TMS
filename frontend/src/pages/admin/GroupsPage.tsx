@@ -25,15 +25,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DesignationSelect } from "@/components/DesignationSelect";
 import { api, apiError } from "@/lib/api";
+import { notifyDeleted } from "@/lib/notify";
+import { useConfirm } from "@/components/ConfirmDialog";
 import type { Group, Page, User } from "@/types";
 
 export default function GroupsPage() {
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Group | null>(null);
   const [form, setForm] = useState({ name: "", description: "" });
   const [memberIds, setMemberIds] = useState<number[]>([]);
+  // Filter the member picker by job designation, so an admin can group
+  // employees role-wise (e.g. select a designation, then "Select all shown").
+  const [designationFilter, setDesignationFilter] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["groups"],
@@ -74,7 +81,7 @@ export default function GroupsPage() {
   const remove = useMutation({
     mutationFn: async (id: number) => api.delete(`/groups/${id}`),
     onSuccess: () => {
-      toast.success("Group deleted");
+      notifyDeleted("Group");
       qc.invalidateQueries({ queryKey: ["groups"] });
     },
     onError: (e) => toast.error(apiError(e)),
@@ -84,17 +91,47 @@ export default function GroupsPage() {
     setEditing(null);
     setForm({ name: "", description: "" });
     setMemberIds([]);
+    setDesignationFilter("");
     setOpen(true);
   };
   const openEdit = (g: Group) => {
     setEditing(g);
     setForm({ name: g.name, description: g.description ?? "" });
     setMemberIds([]);
+    setDesignationFilter("");
     setOpen(true);
   };
 
   const toggleMember = (id: number) =>
     setMemberIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+
+  // Employees currently visible in the picker, after the designation filter.
+  const shownUsers = (users.data?.items ?? []).filter(
+    (u) => !designationFilter || (u.designation ?? "") === designationFilter,
+  );
+  const shownAllSelected =
+    shownUsers.length > 0 && shownUsers.every((u) => memberIds.includes(u.id));
+
+  const clearShown = () => {
+    const shownIds = new Set(shownUsers.map((u) => u.id));
+    setMemberIds((ids) => ids.filter((id) => !shownIds.has(id)));
+  };
+
+  // Picking a designation instantly selects EVERYONE with it (e.g. choose "QA"
+  // and all 100 QA employees are added in one action — no extra clicks). Choosing
+  // another designation accumulates, so you can build a group from several roles.
+  const applyDesignation = (value: string) => {
+    setDesignationFilter(value);
+    if (value) {
+      const matching = (users.data?.items ?? [])
+        .filter((u) => (u.designation ?? "") === value)
+        .map((u) => u.id);
+      if (matching.length) {
+        setMemberIds((ids) => Array.from(new Set([...ids, ...matching])));
+        toast.success(`Selected ${matching.length} ${value} employee(s)`);
+      }
+    }
+  };
 
   return (
     <div>
@@ -148,8 +185,15 @@ export default function GroupsPage() {
                         variant="ghost"
                         size="icon"
                         className="text-destructive"
-                        onClick={() => {
-                          if (confirm(`Delete group "${g.name}"?`)) remove.mutate(g.id);
+                        onClick={async () => {
+                          if (
+                            await confirm({
+                              title: "Delete group",
+                              description: `Delete the group “${g.name}”? This can’t be undone.`,
+                              confirmText: "Delete",
+                            })
+                          )
+                            remove.mutate(g.id);
                         }}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -182,13 +226,46 @@ export default function GroupsPage() {
             </div>
             <div className="space-y-2">
               <Label>Members ({memberIds.length} selected)</Label>
+              {/* Group role-wise: filter the list by designation, then bulk-add. */}
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="flex-1">
+                  <DesignationSelect
+                    value={designationFilter}
+                    onChange={applyDesignation}
+                    placeholder="Select a designation to add all its employees"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={
+                    shownAllSelected
+                      ? clearShown
+                      : () =>
+                          setMemberIds((ids) =>
+                            Array.from(new Set([...ids, ...shownUsers.map((u) => u.id)])),
+                          )
+                  }
+                  disabled={shownUsers.length === 0}
+                >
+                  {shownAllSelected ? "Clear" : "Select all"}
+                  {designationFilter ? " shown" : ""}
+                </Button>
+              </div>
               <div className="max-h-52 overflow-y-auto rounded-md border p-1">
                 {users.isLoading && (
                   <div className="flex justify-center p-4">
                     <Spinner />
                   </div>
                 )}
-                {users.data?.items.map((u) => (
+                {!users.isLoading && shownUsers.length === 0 && (
+                  <p className="p-4 text-center text-sm text-muted-foreground">
+                    No employees
+                    {designationFilter ? ` with designation “${designationFilter}”` : ""}.
+                  </p>
+                )}
+                {shownUsers.map((u) => (
                   <label
                     key={u.id}
                     className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent"
@@ -202,7 +279,10 @@ export default function GroupsPage() {
                     <span className="flex-1">
                       {u.first_name} {u.last_name}
                     </span>
-                    <span className="text-xs text-muted-foreground">{u.department?.name ?? "—"}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {u.designation ?? "—"}
+                      {u.department?.name ? ` · ${u.department.name}` : ""}
+                    </span>
                   </label>
                 ))}
               </div>

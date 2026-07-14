@@ -3,10 +3,13 @@ from __future__ import annotations
 
 from typing import Optional
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.api.deps import DbSession, frontend_base_url, require_admin
 from app.models.enums import RoleName
+from app.models.user import User
 from app.schemas.assignment import MyCourseOut
 from app.schemas.common import Message, Page
 from app.schemas.user import UserCreate, UserCreateResponse, UserOut, UserUpdate
@@ -69,3 +72,9 @@ def activate_user(user_id: int, db: DbSession):
 @router.post("/{user_id}/deactivate", response_model=UserOut)
 def deactivate_user(user_id: int, db: DbSession):
     return UserOut.from_model(UserService(db).set_active(user_id, False))
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(user_id: int, db: DbSession, admin: Annotated[User, Depends(require_admin)]):
+    """Permanently delete a user (and their dependent records) from the DB."""
+    UserService(db).delete_user(user_id, actor=admin)

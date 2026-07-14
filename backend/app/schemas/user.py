@@ -36,6 +36,19 @@ class DepartmentOut(DepartmentBase):
 
 
 # --------------------------------------------------------------------------- #
+# Designation (job-title catalogue)
+# --------------------------------------------------------------------------- #
+class DesignationCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=120)
+
+
+class DesignationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+
+
+# --------------------------------------------------------------------------- #
 # Group
 # --------------------------------------------------------------------------- #
 class GroupBase(BaseModel):
@@ -74,6 +87,8 @@ class UserBase(BaseModel):
     email: Email
     department_id: Optional[int] = None
     employee_id: RequiredEmployeeId = Field(..., max_length=50)
+    # Job title / seniority; feeds AI course recommendations.
+    designation: Optional[str] = Field(None, max_length=120)
 
 
 class UserCreate(UserBase):
@@ -89,6 +104,7 @@ class UserUpdate(BaseModel):
     email: Optional[Email] = None
     department_id: Optional[int] = None
     employee_id: EmployeeId = Field(None, max_length=50)
+    designation: Optional[str] = Field(None, max_length=120)
     role: Optional[RoleName] = None
     is_active: Optional[bool] = None
     password: Optional[str] = Field(None, min_length=8, max_length=128)
@@ -108,6 +124,7 @@ class UserOut(BaseModel):
     username: str
     email: Email
     employee_id: Optional[str]
+    designation: Optional[str] = None
     status: UserStatus
     is_active: bool
     role: RoleName
@@ -124,6 +141,7 @@ class UserOut(BaseModel):
             username=user.username,
             email=user.email,
             employee_id=user.employee_id,
+            designation=user.designation,
             status=user.status,
             is_active=user.is_active,
             role=user.role.name,

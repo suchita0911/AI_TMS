@@ -34,11 +34,30 @@ _SYSTEM = (
 )
 
 
-def _prompt(focus: str, count: int, exclude: list[str]) -> str:
+def _prompt(
+    focus: str,
+    count: int,
+    exclude: list[str],
+    designation: str = "",
+    level: str = "",
+) -> str:
     focus_line = (
         f"Focus the recommendations on this area: {focus}.\n"
         if focus
         else "Cover a broad, complementary mix across the IT industry.\n"
+    )
+    designation_line = (
+        f"Tailor the recommendations specifically for an employee whose job "
+        f"designation is \"{designation}\": EVERY course must be directly relevant "
+        f"to the responsibilities and typical seniority of this role.\n"
+        if designation
+        else ""
+    )
+    level_line = (
+        f"EVERY recommended course MUST be at the \"{level}\" difficulty level -do "
+        f"not include courses at any other level.\n"
+        if level
+        else ""
     )
     exclude_line = (
         "The organisation ALREADY offers these courses -do NOT repeat them or "
@@ -46,10 +65,21 @@ def _prompt(focus: str, count: int, exclude: list[str]) -> str:
         if exclude
         else ""
     )
+    # Relevance guard: for a given focus, only return matching courses, and return
+    # nothing (an empty array) when the focus isn't a real topic — so random text
+    # yields "not found" instead of irrelevant filler.
+    relevance_line = (
+        f"IMPORTANT: every recommendation MUST be directly relevant to \"{focus}\". "
+        f"If \"{focus}\" is not a recognisable technology, IT, or professional-skills "
+        f"topic (for example random characters, gibberish, or an unrelated subject), "
+        f"return an empty JSON array [] and nothing else.\n"
+        if focus
+        else ""
+    )
     return f"""Recommend {count} training courses that are trending and beneficial \
 for an IT-industry organisation to offer its employees right now.
 
-{focus_line}{exclude_line}
+{designation_line}{level_line}{focus_line}{relevance_line}{exclude_line}
 For each course provide:
 - a concise, specific course title (max ~80 chars)
 - a 1-2 sentence description of what it covers
@@ -92,21 +122,22 @@ def _clean(item: dict) -> dict | None:
     }
 
 
-def _generate_with_claude(focus: str, count: int, exclude: list[str]) -> list[dict]:
+def _generate_with_claude(
+    focus: str, count: int, exclude: list[str], designation: str = "", level: str = ""
+) -> list[dict]:
     # Use the fast model with a bounded token budget: the output is a short JSON
     # array, so this keeps the admin page responsive (vs. the heavy default model).
     data = claude_client.complete_json(
         _SYSTEM,
-        _prompt(focus, count, exclude),
+        _prompt(focus, count, exclude, designation, level),
         model=settings.CLAUDE_TRENDING_MODEL,
         max_tokens=3000,
     )
     if not isinstance(data, list):
         raise ClaudeError("Model did not return a JSON array of courses")
-    cleaned = [c for c in (_clean(i) for i in data if isinstance(i, dict)) if c]
-    if not cleaned:
-        raise ClaudeError("Model returned no usable recommendations")
-    return cleaned
+    # An empty array is a valid answer here (the model judged the focus has no
+    # relevant courses), so don't raise — let the caller surface "not found".
+    return [c for c in (_clean(i) for i in data if isinstance(i, dict)) if c]
 
 
 # --------------------------------------------------------------------------- #
@@ -212,32 +243,73 @@ _FALLBACK: list[dict] = [
 ]
 
 
-def _generate_fallback(focus: str, count: int, exclude: list[str]) -> list[dict]:
+def _generate_fallback(
+    focus: str,
+    count: int,
+    exclude: list[str],
+    designation: str = "",
+    level: str = "",
+) -> list[dict]:
     excluded = {t.strip().lower() for t in exclude}
-    focus_l = (focus or "").strip().lower()
     items = [c for c in _FALLBACK if c["title"].lower() not in excluded]
-    if focus_l:
-        # Loosely prioritise items whose text mentions the focus area.
-        def score(c: dict) -> int:
-            blob = f"{c['title']} {c['category']} {c.get('description','')}".lower()
-            return 0 if focus_l in blob else 1
+    # Level is a hard constraint: keep only courses at exactly that level, and
+    # return nothing (not-found) if none qualify.
+    lvl = (level or "").strip().lower()
+    if lvl in _LEVELS:
+        items = [c for c in items if c["level"] == lvl]
+        if not items:
+            return []
 
-        items = sorted(items, key=score)
+    def _blob(c: dict) -> str:
+        return f"{c['title']} {c['category']} {c.get('description','')}".lower()
+
+    # Focus is an exact-match gate: keep only curated items that actually mention
+    # a focus term. If a focus is given but nothing matches (e.g. random text),
+    # return nothing so the caller can show "course not found" instead of filler.
+    focus_terms = [t for t in (focus or "").strip().lower().split() if len(t) > 2]
+    if focus_terms:
+        items = [c for c in items if any(t in _blob(c) for t in focus_terms)]
+        if not items:
+            return []
+
+    # Designation only tailors ordering (it's a role hint, not a search filter).
+    desig_terms = [t for t in (designation or "").strip().lower().split() if len(t) > 2]
+    if desig_terms and items:
+        items = sorted(items, key=lambda c: sum(1 for t in desig_terms if t not in _blob(c)))
     return [dict(c) for c in items[:count]]
 
 
 def recommend(
-    focus: str = "", count: int = 6, exclude: list[str] | None = None
+    focus: str = "",
+    count: int = 6,
+    exclude: list[str] | None = None,
+    designation: str = "",
+    level: str = "",
 ) -> tuple[list[dict], str]:
     """Return ``(courses, source)`` where source is ``"ai"`` or ``"fallback"``."""
     focus = (focus or "").strip()
+    designation = (designation or "").strip()
+    lvl = (level or "").strip().lower()
+    lvl = lvl if lvl in _LEVELS else ""
     count = max(MIN_COUNT, min(int(count or 6), MAX_COUNT))
     exclude = [t for t in (exclude or []) if t][:100]
+    # Focus, designation or level each make the query "specific" — an empty result
+    # should then be surfaced as not-found rather than masked by the generic list.
+    specific = bool(focus or designation or lvl)
 
     if claude_client.is_configured():
         try:
-            return _generate_with_claude(focus, count, exclude)[:count], "ai"
+            items = _generate_with_claude(focus, count, exclude, designation, lvl)
+            # Enforce level as a hard constraint on the AI output too (the model is
+            # instructed to obey it, but filter to be certain).
+            if lvl:
+                items = [i for i in items if i.get("level") == lvl]
+            # Trust the AI's verdict — including an empty list, which means "no
+            # relevant/matching courses" (surface as not-found, don't mask it with
+            # the fallback). Only a criteria-less empty result falls through.
+            if items or specific:
+                return items[:count], "ai"
         except ClaudeError as exc:
             logger.warning("Claude trending recommendation failed (%s); using fallback", exc)
 
-    return _generate_fallback(focus, count, exclude), "fallback"
+    return _generate_fallback(focus, count, exclude, designation, lvl), "fallback"

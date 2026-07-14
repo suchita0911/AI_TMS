@@ -18,6 +18,7 @@ class RegisterRequest(BaseModel):
     email: Email
     department_id: Optional[int] = None
     employee_id: RequiredEmployeeId = Field(..., max_length=50)
+    designation: Optional[str] = Field(None, max_length=120)
 
 
 class RegisterResponse(BaseModel):

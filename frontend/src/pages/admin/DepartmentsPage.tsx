@@ -26,11 +26,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { api, apiError } from "@/lib/api";
+import { notifyDeleted } from "@/lib/notify";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { formatDate } from "@/lib/utils";
 import type { Department, Page } from "@/types";
 
 export default function DepartmentsPage() {
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Department | null>(null);
   const [form, setForm] = useState({ name: "", description: "" });
@@ -58,7 +61,7 @@ export default function DepartmentsPage() {
   const remove = useMutation({
     mutationFn: async (id: number) => api.delete(`/departments/${id}`),
     onSuccess: () => {
-      toast.success("Department deleted");
+      notifyDeleted("Department");
       qc.invalidateQueries({ queryKey: ["departments"] });
     },
     onError: (e) => toast.error(apiError(e)),
@@ -130,8 +133,15 @@ export default function DepartmentsPage() {
                         variant="ghost"
                         size="icon"
                         className="text-destructive"
-                        onClick={() => {
-                          if (confirm(`Delete department "${d.name}"?`)) remove.mutate(d.id);
+                        onClick={async () => {
+                          if (
+                            await confirm({
+                              title: "Delete department",
+                              description: `Delete the department “${d.name}”? This can’t be undone.`,
+                              confirmText: "Delete",
+                            })
+                          )
+                            remove.mutate(d.id);
                         }}
                       >
                         <Trash2 className="h-4 w-4" />

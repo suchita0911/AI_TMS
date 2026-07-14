@@ -6,6 +6,7 @@ from app.api.v1.routers import (
     certificates,
     courses,
     departments,
+    designations,
     groups,
     me,
     notifications,
@@ -17,6 +18,7 @@ api_router = APIRouter()
 api_router.include_router(auth.router)
 api_router.include_router(users.router)
 api_router.include_router(departments.router)
+api_router.include_router(designations.router)
 api_router.include_router(groups.router)
 api_router.include_router(courses.router)
 api_router.include_router(courses.admin_router)

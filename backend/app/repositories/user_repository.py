@@ -7,7 +7,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.enums import RoleName
-from app.models.user import Department, Group, Role, User
+from app.models.user import Department, Designation, Group, Role, User
 from app.repositories.base import BaseRepository
 
 
@@ -110,6 +110,26 @@ class DepartmentRepository(BaseRepository[Department]):
             .all()
         )
         return rows, total
+
+
+class DesignationRepository(BaseRepository[Designation]):
+    model = Designation
+
+    def get_by_name(self, name: str) -> Optional[Designation]:
+        return self.db.execute(
+            select(Designation).where(func.lower(Designation.name) == name.lower())
+        ).scalar_one_or_none()
+
+    def list_active(self) -> Sequence[Designation]:
+        return (
+            self.db.execute(
+                select(Designation)
+                .where(Designation.is_active.is_(True))
+                .order_by(Designation.name)
+            )
+            .scalars()
+            .all()
+        )
 
 
 class GroupRepository(BaseRepository[Group]):

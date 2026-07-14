@@ -100,20 +100,29 @@ def trending_courses(
     db: DbSession,
     current_user: CurrentUser,
     focus: Optional[str] = Query(None, description="Optional focus area, e.g. 'Cloud' or 'Security'"),
+    designation: Optional[str] = Query(None, description="Optional job designation to tailor recommendations for, e.g. 'Senior Software Engineer'"),
+    level: Optional[str] = Query(None, description="Optional difficulty level: beginner, intermediate, or advanced"),
     count: int = Query(6, ge=1, le=12),
 ):
     """AI-recommended trending IT-industry courses the admin might roll out.
 
-    Existing catalogue titles are excluded so suggestions stay fresh. Degrades
-    to a curated list when no AI key is configured (``source: 'fallback'``).
+    Existing catalogue titles are excluded so suggestions stay fresh. An optional
+    ``designation`` tailors the picks to a specific job role. Degrades to a
+    curated list when no AI key is configured (``source: 'fallback'``).
     """
     existing, _ = CourseService(db).list(limit=100)
     items, source = trending_recommender.recommend(
-        focus=focus or "", count=count, exclude=[c.name for c in existing]
+        focus=focus or "",
+        count=count,
+        exclude=[c.name for c in existing],
+        designation=designation or "",
+        level=level or "",
     )
     return TrendingRecommendationsOut(
         items=[TrendingCourseOut(**i) for i in items],
         focus=focus or None,
+        designation=designation or None,
+        level=level or None,
         source=source,
     )
 

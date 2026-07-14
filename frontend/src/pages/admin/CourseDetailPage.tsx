@@ -34,6 +34,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageLoader, Spinner } from "@/components/ui/spinner";
 import { api, apiError } from "@/lib/api";
+import { notifyDeleted } from "@/lib/notify";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { formatDate } from "@/lib/utils";
 import type { CourseDetail, CourseDocument, Enrollment } from "@/types";
 
@@ -56,6 +58,7 @@ export default function CourseDetailPage() {
   const courseId = Number(id);
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const fileRef = useRef<HTMLInputElement>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
@@ -143,7 +146,7 @@ export default function CourseDetailPage() {
   const removeDoc = useMutation({
     mutationFn: async (docId: number) => api.delete(`/courses/${courseId}/documents/${docId}`),
     onSuccess: () => {
-      toast.success("Material removed");
+      notifyDeleted("Material");
       invalidate();
     },
     onError: (e) => toast.error(apiError(e)),
@@ -162,7 +165,7 @@ export default function CourseDetailPage() {
   const remove = useMutation({
     mutationFn: async () => api.delete(`/courses/${courseId}`),
     onSuccess: () => {
-      toast.success("Course deleted");
+      notifyDeleted("Course", course?.name);
       navigate("/admin/courses");
     },
     onError: (e) => toast.error(apiError(e)),
@@ -216,8 +219,15 @@ export default function CourseDetailPage() {
               variant="ghost"
               size="icon"
               className="text-destructive"
-              onClick={() => {
-                if (confirm(`Delete course "${course.name}"? This cannot be undone.`)) remove.mutate();
+              onClick={async () => {
+                if (
+                  await confirm({
+                    title: "Delete course",
+                    description: `Delete the course “${course.name}”? This can’t be undone.`,
+                    confirmText: "Delete",
+                  })
+                )
+                  remove.mutate();
               }}
             >
               <Trash2 className="h-4 w-4" />

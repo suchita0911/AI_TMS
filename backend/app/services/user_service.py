@@ -11,9 +11,10 @@ from app.core.exceptions import BusinessRuleError, ConflictError, NotFoundError
 from app.core.security import create_password_setup_token, decode_token, hash_password
 from app.models.auth import PasswordToken
 from app.models.enums import UserStatus
-from app.models.user import Department, Group, User
+from app.models.user import Department, Designation, Group, User
 from app.repositories.user_repository import (
     DepartmentRepository,
+    DesignationRepository,
     GroupRepository,
     RoleRepository,
     UserRepository,
@@ -21,6 +22,7 @@ from app.repositories.user_repository import (
 from app.schemas.user import (
     DepartmentCreate,
     DepartmentUpdate,
+    DesignationCreate,
     GroupCreate,
     GroupUpdate,
     UserCreate,
@@ -35,6 +37,7 @@ class UserService:
         self.users = UserRepository(db)
         self.roles = RoleRepository(db)
         self.departments = DepartmentRepository(db)
+        self.designation_catalog = DesignationRepository(db)
         self.groups = GroupRepository(db)
 
     # ---------------------------- Users ---------------------------- #
@@ -90,6 +93,7 @@ class UserService:
             username=username,
             email=str(data.email),
             employee_id=data.employee_id,
+            designation=(data.designation or None),
             department_id=data.department_id,
             role_id=role.id,
             is_active=True,
@@ -145,6 +149,10 @@ class UserService:
             if existing and existing.id != user.id:
                 raise ConflictError("Employee ID is already in use")
             user.employee_id = data.employee_id
+        # Use model_fields_set so an explicit null/"" clears the designation — a
+        # plain "is not None" check can't distinguish "omitted" from "cleared".
+        if "designation" in data.model_fields_set:
+            user.designation = data.designation or None
         if data.department_id is not None:
             if data.department_id and not self.departments.get(data.department_id):
                 raise NotFoundError("Department not found")
@@ -164,6 +172,21 @@ class UserService:
                 user.status = UserStatus.ACTIVE
         self.db.commit()
         return user
+
+    def delete_user(self, user_id: int, actor: User) -> None:
+        """Permanently delete a user from the database.
+
+        Related rows are handled by DB foreign-key rules: enrollments, quiz
+        attempts/answers, certificates, notifications and group memberships
+        cascade-delete; audit logs and authored courses are preserved with their
+        actor/author set to NULL. An admin cannot delete their own account (which
+        also guarantees at least one administrator always remains).
+        """
+        user = self.get_user(user_id)
+        if user.id == actor.id:
+            raise BusinessRuleError("You cannot delete your own account.")
+        self.db.delete(user)
+        self.db.commit()
 
     def set_active(self, user_id: int, active: bool) -> User:
         user = self.get_user(user_id)
@@ -219,6 +242,27 @@ class UserService:
             )
         self.departments.delete(dept)
         self.db.commit()
+
+    # ------------------------- Designations ------------------------ #
+    def list_designations(self) -> list[Designation]:
+        return list(self.designation_catalog.list_active())
+
+    def create_designation(self, data: DesignationCreate) -> Designation:
+        name = data.name.strip()
+        if not name:
+            raise BusinessRuleError("Designation name is required")
+        existing = self.designation_catalog.get_by_name(name)
+        if existing:
+            # Idempotent: reactivate/return the existing one instead of erroring,
+            # so "add" is forgiving if the value already exists.
+            if not existing.is_active:
+                existing.is_active = True
+                self.db.commit()
+            return existing
+        designation = Designation(name=name, is_active=True)
+        self.designation_catalog.add(designation)
+        self.db.commit()
+        return designation
 
     # ---------------------------- Groups --------------------------- #
     def get_group(self, group_id: int) -> Group:

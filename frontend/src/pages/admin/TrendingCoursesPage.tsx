@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DesignationSelect } from "@/components/DesignationSelect";
 import { api, apiError } from "@/lib/api";
 import type {
   CourseDetail,
@@ -32,14 +34,23 @@ const levelVariant: Record<string, "success" | "warning" | "destructive" | "seco
 export default function TrendingCoursesPage() {
   const navigate = useNavigate();
   const [focus, setFocus] = useState("");
+  const [designation, setDesignation] = useState("");
+  const [level, setLevel] = useState<"beginner" | "intermediate" | "advanced" | undefined>(undefined);
   const [result, setResult] = useState<TrendingRecommendations | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
+
+  const hasInput = Boolean((focus || "").trim() || designation || level);
 
   const recommend = useMutation({
     mutationFn: async () =>
       (
         await api.get<TrendingRecommendations>("/courses/trending", {
-          params: { focus: focus.trim() || undefined, count: 6 },
+          params: {
+            focus: focus.trim() || undefined,
+            designation: designation || undefined,
+            level: level || undefined,
+            count: 6,
+          },
         })
       ).data,
     onSuccess: (data) => setResult(data),
@@ -86,27 +97,69 @@ export default function TrendingCoursesPage() {
         title="Trending Courses"
         description="AI-recommended, in-demand IT training you can roll out to your organisation"
         actions={
-          <Button onClick={() => recommend.mutate()} disabled={recommend.isPending}>
+          <Button
+            onClick={() => recommend.mutate()}
+            disabled={recommend.isPending || !hasInput}
+          >
             {recommend.isPending ? <Spinner /> : <Sparkles className="h-4 w-4" />}
             {result ? "Refresh" : "Get recommendations"}
           </Button>
         }
       />
 
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row">
+      <div className="mb-2 flex flex-col gap-3 sm:flex-row">
+        <div className="space-y-1.5">
+          <DesignationSelect
+            value={designation}
+            onChange={(value) => {
+              setDesignation(value);
+              if (!value) {
+                setLevel(undefined);
+              }
+              setResult(null);
+            }}
+            allowAdd
+            triggerClassName="sm:w-72"
+            placeholder="Select a designation"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Select
+            value={level}
+            onValueChange={(value) => {
+              const normalized = value as "beginner" | "intermediate" | "advanced";
+              setLevel(normalized);
+              setResult(null);
+            }}
+          >
+            <SelectTrigger className="sm:w-56">
+              <SelectValue placeholder="Select level" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="beginner">Beginner</SelectItem>
+              <SelectItem value="intermediate">Intermediate</SelectItem>
+              <SelectItem value="advanced">Advanced</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="relative flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="pl-9"
-            placeholder="Focus area (optional) - e.g. Cloud, Security, AI/ML, DevOps"
+            placeholder="Focus area (optional) - e.g. Cloud, Security, AI/ML"
             value={focus}
             onChange={(e) => setFocus(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && recommend.mutate()}
+            onKeyDown={(e) => e.key === "Enter" && hasInput && recommend.mutate()}
           />
         </div>
       </div>
+      <p className="mb-6 text-sm text-muted-foreground">
+        {hasInput
+          ? "Now click “Get recommendations” to see courses tailored to your input."
+          : "Enter a focus area or choose a designation to get recommendations."}
+      </p>
 
-      {result?.source === "fallback" && (
+      {result?.source === "fallback" && result.items.length > 0 && (
         <div className="mb-5 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
           <Lightbulb className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
@@ -135,7 +188,39 @@ export default function TrendingCoursesPage() {
         </div>
       )}
 
-      {result && (
+      {result && (result.designation || result.focus || result.level) && (
+        <p className="mb-4 text-sm text-muted-foreground">
+          Tailored for{" "}
+          {[result.designation, result.focus, result.level]
+            .filter(Boolean)
+            .map((part, i, arr) => (
+              <span key={i}>
+                <span className="font-medium capitalize text-foreground">{part}</span>
+                {i < arr.length - 1 && " · "}
+              </span>
+            ))}
+        </p>
+      )}
+
+      {result && result.items.length === 0 && (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground">
+            <Search className="h-10 w-10 opacity-40" />
+            <p className="max-w-md font-medium text-foreground">Course not found</p>
+            <p className="max-w-md text-sm">
+              No trending courses matched{" "}
+              {result.focus ? (
+                <span className="font-medium">“{result.focus}”</span>
+              ) : (
+                "your input"
+              )}
+              . Try a real technology topic like “Cloud”, “Security”, or “AI/ML”.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {result && result.items.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {result.items.map((c) => (
             <Card key={c.title} className="flex h-full flex-col">

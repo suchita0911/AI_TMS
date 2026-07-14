@@ -10,6 +10,11 @@ venv/
 .env
 *.local
 
+# DB dumps / migration scripts (contain PII + hashed passwords)
+render_seed_data.sql
+render_truncate.sql
+*.dump
+
 # Node
 node_modules/
 dist/

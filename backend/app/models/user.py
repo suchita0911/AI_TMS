@@ -51,6 +51,19 @@ class Department(Base, TimestampMixin):
     users: Mapped[list["User"]] = relationship(back_populates="department")
 
 
+class Designation(Base, TimestampMixin):
+    """Catalogue of job designations offered in the employee forms and the AI
+    recommendation picker. Admins can add new ones on the fly; the value stored
+    on ``User.designation`` is the plain name, so this table is just the
+    convenience list of known options."""
+
+    __tablename__ = "designations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False, index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
 class Group(Base, TimestampMixin):
     __tablename__ = "groups"
 
@@ -80,6 +93,9 @@ class User(Base, TimestampMixin):
     username: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     email: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
     employee_id: Mapped[Optional[str]] = mapped_column(String(50), index=True)
+    # Job title / seniority (e.g. "Senior Software Engineer"). Used, among other
+    # things, to let the AI tailor course recommendations to the employee's role.
+    designation: Mapped[Optional[str]] = mapped_column(String(120))
 
     hashed_password: Mapped[Optional[str]] = mapped_column(String(255))
     status: Mapped[UserStatus] = mapped_column(
