@@ -17,6 +17,7 @@ const FILTERS = [
   { key: "optional", label: "Optional" },
   { key: "pending", label: "Pending" },
   { key: "completed", label: "Completed" },
+  { key: "expired", label: "Expired" },
 ] as const;
 
 export default function MyCoursesPage() {
@@ -34,7 +35,9 @@ export default function MyCoursesPage() {
     if (filter === "mandatory") return c.course_type === "mandatory";
     if (filter === "optional") return c.course_type === "optional";
     if (filter === "completed") return c.status === "completed";
-    if (filter === "pending") return c.status !== "completed";
+    if (filter === "expired") return c.status === "expired";
+    // "Pending" = still actionable: neither completed nor expired.
+    if (filter === "pending") return c.status !== "completed" && c.status !== "expired";
     return true;
   });
 
