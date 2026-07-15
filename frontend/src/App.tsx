@@ -16,6 +16,7 @@ import GroupsPage from "@/pages/admin/GroupsPage";
 import CoursesPage from "@/pages/admin/CoursesPage";
 import TrendingCoursesPage from "@/pages/admin/TrendingCoursesPage";
 import CourseDetailPage from "@/pages/admin/CourseDetailPage";
+import QuestionBankPage from "@/pages/admin/QuestionBankPage";
 import ReportsPage from "@/pages/admin/ReportsPage";
 import MyCoursesPage from "@/pages/employee/MyCoursesPage";
 import CourseViewerPage from "@/pages/employee/CourseViewerPage";
@@ -61,6 +62,7 @@ export default function App() {
           <Route path="/admin/courses" element={<CoursesPage />} />
           <Route path="/admin/trending" element={<TrendingCoursesPage />} />
           <Route path="/admin/courses/:id" element={<CourseDetailPage />} />
+          <Route path="/admin/courses/:id/questions" element={<QuestionBankPage />} />
           <Route path="/admin/employees" element={<EmployeesPage />} />
           <Route path="/admin/employees/:id" element={<EmployeeDetailPage />} />
           <Route path="/admin/departments" element={<DepartmentsPage />} />

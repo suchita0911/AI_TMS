@@ -1,6 +1,7 @@
 """Data access for courses and course documents."""
 from __future__ import annotations
 
+from datetime import date
 from typing import Optional, Sequence
 
 from sqlalchemy import func, or_, select
@@ -28,6 +29,7 @@ class CourseRepository(BaseRepository[Course]):
         status: Optional[CourseStatus] = None,
         course_type: Optional[CourseType] = None,
         category: Optional[str] = None,
+        expired: Optional[bool] = None,
         offset: int = 0,
         limit: int = 20,
     ) -> tuple[Sequence[Course], int]:
@@ -42,6 +44,14 @@ class CourseRepository(BaseRepository[Course]):
             )
         if status:
             stmt = stmt.where(Course.status == status)
+        if expired:
+            # "Expired" mirrors the UI badge: a published course past its due
+            # date (end_date). Matches Course.is_expired for published courses.
+            stmt = stmt.where(
+                Course.status == CourseStatus.PUBLISHED,
+                Course.end_date.is_not(None),
+                Course.end_date < date.today(),
+            )
         if course_type:
             stmt = stmt.where(Course.course_type == course_type)
         if category:

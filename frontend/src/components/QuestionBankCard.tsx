@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Sparkles, Trash2, Brain } from "lucide-react";
+import { Sparkles, Trash2, Brain, ListChecks } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,24 +91,31 @@ export function QuestionBankCard({ courseId }: { courseId: number }) {
           {s && <Badge variant="secondary">{s.total} questions</Badge>}
         </CardTitle>
         {s && s.total > 0 && !busy && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-destructive"
-            onClick={async () => {
-              if (
-                await confirm({
-                  title: "Clear question bank",
-                  description:
-                    "Delete all generated questions for this course? This can’t be undone.",
-                  confirmText: "Clear",
-                })
-              )
-                clear.mutate();
-            }}
-          >
-            <Trash2 className="h-4 w-4" /> Clear
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" asChild>
+              <Link to={`/admin/courses/${courseId}/questions`}>
+                <ListChecks className="h-4 w-4" /> View questions
+              </Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive"
+              onClick={async () => {
+                if (
+                  await confirm({
+                    title: "Clear question bank",
+                    description:
+                      "Delete all generated questions for this course? This can’t be undone.",
+                    confirmText: "Clear",
+                  })
+                )
+                  clear.mutate();
+              }}
+            >
+              <Trash2 className="h-4 w-4" /> Clear
+            </Button>
+          </div>
         )}
       </CardHeader>
       <CardContent className="space-y-4">
