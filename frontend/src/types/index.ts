@@ -277,6 +277,20 @@ export interface QuestionBankStats {
   generated_by: Record<string, number>;
 }
 
+export interface QuestionBankOut {
+  id: number;
+  question_type: QuestionType;
+  difficulty: Difficulty;
+  question_text: string;
+  options: string[];
+  correct_answer: string;
+  explanation?: string | null;
+  topic?: string | null;
+  reference_section?: string | null;
+  generated_by: string;
+  is_active: boolean;
+}
+
 export interface GenerationResult {
   generated: number;
   total_in_bank: number;
