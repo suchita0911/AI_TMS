@@ -275,7 +275,7 @@ class CourseService:
             return
         try:
             doc.status = DocumentStatus.PROCESSING
-            text = document_processor.extract_text(doc.file_path)
+            text = document_processor.extract_text(str(storage.resolve_path(doc.file_path)))
             doc.extracted_text = text
             doc.status = DocumentStatus.PROCESSED
             doc.processing_error = None
