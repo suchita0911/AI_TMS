@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from fastapi.responses import FileResponse
 
 from app.api.deps import CurrentUser, DbSession
+from app.core.exceptions import NotFoundError
 from app.models.question import QuizAttempt
 from app.schemas.assignment import MyCourseOut
 from app.schemas.course import CourseDetailOut
@@ -19,6 +20,7 @@ from app.schemas.quiz import (
 from app.services.assignment_service import AssignmentService
 from app.services.course_service import CourseService
 from app.services.quiz_service import QuizService
+from app.utils import storage
 
 router = APIRouter(prefix="/me/courses", tags=["My Courses"])
 
@@ -39,8 +41,11 @@ def download_my_document(course_id: int, document_id: int, db: DbSession, curren
     # Raises if the course is not assigned to this employee.
     AssignmentService(db).get_my_course(course_id, current_user)
     doc = CourseService(db).get_document(course_id, document_id)
+    path = storage.resolve_path(doc.file_path)
+    if not path or not path.is_file():
+        raise NotFoundError("Document file is not available")
     return FileResponse(
-        doc.file_path, filename=doc.original_filename, media_type=doc.content_type or None
+        path, filename=doc.original_filename, media_type=doc.content_type or None
     )
 
 

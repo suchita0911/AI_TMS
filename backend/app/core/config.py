@@ -2,10 +2,16 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import List
 
 from pydantic import AnyHttpUrl, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Backend project root (…/backend), used to anchor relative paths so they don't
+# depend on the process's working directory. config.py lives at
+# backend/app/core/config.py, so the root is three parents up.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -111,6 +117,20 @@ class Settings(BaseSettings):
             f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
+
+    @property
+    def upload_path(self) -> Path:
+        """Absolute base directory for stored files.
+
+        An absolute UPLOAD_DIR is used as-is (e.g. a persistent volume in
+        production); a relative one is anchored to the backend project root so
+        the location is stable no matter which directory the server starts in.
+        File paths are persisted relative to this base, so the same database
+        value resolves correctly in every environment (local and deployed)."""
+        p = Path(self.UPLOAD_DIR)
+        if not p.is_absolute():
+            p = (PROJECT_ROOT / p)
+        return p.resolve()
 
     @property
     def max_upload_bytes(self) -> int:

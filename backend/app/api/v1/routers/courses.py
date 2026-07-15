@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import FileResponse
 
 from app.api.deps import CurrentUser, DbSession, require_admin
+from app.core.exceptions import NotFoundError
+from app.utils import storage
 from app.models.enums import CourseStatus, CourseType
 from app.schemas.assignment import (
     AssignRequest,
@@ -137,8 +139,14 @@ def get_course(course_id: int, db: DbSession, current_user: CurrentUser):
 @router.get("/{course_id}/documents/{document_id}/download")
 def download_document(course_id: int, document_id: int, db: DbSession, current_user: CurrentUser):
     doc = CourseService(db).get_document(course_id, document_id)
+    # Resolve the stored (portable) path to an absolute one and confirm the file
+    # exists, so a missing file returns a clean 404 instead of letting
+    # FileResponse raise at send time and surface as an opaque 500.
+    path = storage.resolve_path(doc.file_path)
+    if not path or not path.is_file():
+        raise NotFoundError("Document file is not available")
     return FileResponse(
-        doc.file_path, filename=doc.original_filename, media_type=doc.content_type or None
+        path, filename=doc.original_filename, media_type=doc.content_type or None
     )
 
 

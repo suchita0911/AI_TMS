@@ -1,7 +1,6 @@
 """Local file storage helper for course material and thumbnails."""
 from __future__ import annotations
 
-import os
 import re
 import secrets
 from pathlib import Path
@@ -47,6 +46,45 @@ def _ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
+def _storage_dir(subdir: str) -> Path:
+    """Return the absolute, existing storage directory for ``subdir``."""
+    base_dir = settings.upload_path / subdir
+    _ensure_dir(base_dir)
+    return base_dir
+
+
+def _rel(dest: Path) -> str:
+    """Path of ``dest`` relative to the upload base, as a portable posix string.
+
+    This is what we persist (e.g. ``courses/1/ab12.txt``) — never an absolute or
+    working-directory-relative path — so the same database value resolves under
+    any UPLOAD_DIR, on any OS, in any environment. Resolve it back with
+    :func:`resolve_path`."""
+    return dest.resolve().relative_to(settings.upload_path).as_posix()
+
+
+def resolve_path(file_path: str | None) -> Path | None:
+    """Resolve a stored path to an absolute filesystem path.
+
+    Handles the current portable form (relative to the upload base) and tolerates
+    legacy values — absolute paths, or working-directory-relative paths that
+    already include the storage prefix — so downloads keep working before the
+    one-off migration runs. Returns the best candidate even if it doesn't exist,
+    so callers can decide how to report a missing file."""
+    if not file_path:
+        return None
+    p = Path(file_path)
+    if p.is_absolute():
+        return p
+    base_joined = settings.upload_path / p
+    if base_joined.exists():
+        return base_joined
+    # Legacy: value was stored relative to the working directory.
+    if p.exists():
+        return p.resolve()
+    return base_joined
+
+
 def save_upload(upload: UploadFile, subdir: str) -> dict:
     """Persist an UploadFile to ``UPLOAD_DIR/subdir`` and return metadata.
 
@@ -59,8 +97,7 @@ def save_upload(upload: UploadFile, subdir: str) -> dict:
     if ext not in ALLOWED_EXTS:
         raise ValidationError(f"File type '{ext or 'unknown'}' is not allowed")
 
-    base_dir = Path(settings.UPLOAD_DIR) / subdir
-    _ensure_dir(base_dir)
+    base_dir = _storage_dir(subdir)
 
     stored_name = f"{secrets.token_hex(16)}{ext}"
     dest = base_dir / stored_name
@@ -84,7 +121,7 @@ def save_upload(upload: UploadFile, subdir: str) -> dict:
     return {
         "original_filename": upload.filename,
         "stored_filename": stored_name,
-        "file_path": str(dest),
+        "file_path": _rel(dest),
         "content_type": upload.content_type,
         "file_type": file_kind(upload.filename),
         "size_bytes": size,
@@ -98,8 +135,7 @@ def save_text_document(text: str, subdir: str, filename: str) -> dict:
     than uploaded. The returned dict matches ``save_upload`` so a CourseDocument
     can be built from it directly.
     """
-    base_dir = Path(settings.UPLOAD_DIR) / subdir
-    _ensure_dir(base_dir)
+    base_dir = _storage_dir(subdir)
 
     safe = re.sub(r"[^A-Za-z0-9._-]+", "-", filename).strip("-") or "course"
     if not safe.lower().endswith(".txt"):
@@ -113,7 +149,7 @@ def save_text_document(text: str, subdir: str, filename: str) -> dict:
     return {
         "original_filename": safe,
         "stored_filename": stored_name,
-        "file_path": str(dest),
+        "file_path": _rel(dest),
         "content_type": "text/plain; charset=utf-8",
         "file_type": "txt",
         "size_bytes": len(data),
@@ -131,15 +167,14 @@ def save_bytes(data: bytes, subdir: str, filename: str,
         raise BusinessRuleError(
             f"File exceeds maximum size of {settings.MAX_UPLOAD_SIZE_MB} MB"
         )
-    base_dir = Path(settings.UPLOAD_DIR) / subdir
-    _ensure_dir(base_dir)
+    base_dir = _storage_dir(subdir)
     stored_name = f"{secrets.token_hex(16)}{ext}"
     dest = base_dir / stored_name
     dest.write_bytes(data)
     return {
         "original_filename": filename,
         "stored_filename": stored_name,
-        "file_path": str(dest),
+        "file_path": _rel(dest),
         "content_type": content_type,
         "file_type": file_kind(filename),
         "size_bytes": len(data),
@@ -147,9 +182,10 @@ def save_bytes(data: bytes, subdir: str, filename: str,
 
 
 def delete_file(file_path: str | None) -> None:
-    if not file_path:
+    resolved = resolve_path(file_path)
+    if not resolved:
         return
     try:
-        Path(file_path).unlink(missing_ok=True)
+        resolved.unlink(missing_ok=True)
     except OSError:
         pass
